@@ -1,9 +1,12 @@
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Target, PenTool, Rocket, Code2,
-    FolderOpen, Settings, Hand, Bot, Bell, Search,
+    FolderOpen, Settings, Hand, Bot, Bell, Search, LogOut,
 } from 'lucide-react';
-import { mockUser } from '../../data/mockData';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api.js';
+import { signOut } from '../../lib/auth-client.ts';
 
 const navItems = [
     { to: '/overview', label: 'Overview', icon: LayoutDashboard },
@@ -11,26 +14,64 @@ const navItems = [
     { to: '/content', label: 'Content Studio', icon: PenTool },
     { to: '/launch', label: 'Launch Kit', icon: Rocket },
     { to: '/codebase', label: 'Codebase', icon: Code2 },
-    { to: '/resources', label: 'Resources', icon: FolderOpen, badge: '5' },
+    { to: '/resources', label: 'Resources', icon: FolderOpen },
     { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export default function Layout({ mode, setMode }) {
+const PLAN_LABELS = {
+    free: 'Free Trial',
+    indie: 'Indie',
+    startup: 'Startup',
+    pro: 'Pro',
+};
+
+export default function Layout() {
     const location = useLocation();
+    const navigate = useNavigate();
+    const [signingOut, setSigningOut] = useState(false);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+    // Real user from Convex
+    const user = useQuery(api.users.getCurrentUser);
+    const toggleMode = useMutation(api.users.toggleMode);
+
+    const mode = user?.mode || 'assist';
 
     const currentPage = navItems.find(
         (item) => location.pathname.startsWith(item.to)
     );
 
+    const handleModeToggle = async (newMode) => {
+        if (!user) return;
+        if (newMode === 'autopilot' && user.plan === 'free') {
+            setShowUpgradeModal(true);
+            return;
+        }
+        await toggleMode({ userId: user._id, mode: newMode });
+    };
+
+    const handleSignOut = async () => {
+        setSigningOut(true);
+        await signOut();
+        navigate('/', { replace: true });
+    };
+
+    const initials = user?.name
+        ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+        : '?';
+
+    const planLabel = PLAN_LABELS[user?.plan] || 'Free Trial';
+    const isFree = !user?.plan || user.plan === 'free';
+
     return (
         <div className="app-layout">
-            {/* Sidebar */}
+            {/* ── Sidebar ────────────────────────────── */}
             <aside className="sidebar">
                 <div className="sidebar-header">
-                    <div className="sidebar-logo">
+                    <NavLink to="/overview" className="sidebar-logo">
                         <div className="sidebar-logo-icon">M</div>
                         <span>MarketAxis</span>
-                    </div>
+                    </NavLink>
                 </div>
 
                 <nav className="sidebar-nav">
@@ -45,7 +86,6 @@ export default function Layout({ mode, setMode }) {
                         >
                             <item.icon />
                             <span>{item.label}</span>
-                            {item.badge && <span className="sidebar-badge">{item.badge}</span>}
                         </NavLink>
                     ))}
 
@@ -60,7 +100,6 @@ export default function Layout({ mode, setMode }) {
                         >
                             <item.icon />
                             <span>{item.label}</span>
-                            {item.badge && <span className="sidebar-badge">{item.badge}</span>}
                         </NavLink>
                     ))}
 
@@ -80,19 +119,44 @@ export default function Layout({ mode, setMode }) {
                 </nav>
 
                 <div className="sidebar-footer">
-                    <div className="sidebar-user">
-                        <div className="sidebar-user-avatar">
-                            {mockUser.name.charAt(0)}
+                    {/* Free Trial upgrade nudge */}
+                    {isFree && (
+                        <div className="sidebar-trial-banner">
+                            <span className="sidebar-trial-badge">Free Trial</span>
+                            <span className="sidebar-trial-text">Upgrade to unlock Autopilot</span>
+                            <button
+                                className="sidebar-trial-btn"
+                                onClick={() => navigate('/settings')}
+                            >
+                                Upgrade →
+                            </button>
                         </div>
+                    )}
+
+                    {/* User row */}
+                    <div className="sidebar-user" onClick={() => navigate('/settings')} style={{ cursor: 'pointer' }}>
+                        <div className="sidebar-user-avatar">{initials}</div>
                         <div className="sidebar-user-info">
-                            <div className="sidebar-user-name">{mockUser.name}</div>
-                            <div className="sidebar-user-plan">{mockUser.plan} plan</div>
+                            <div className="sidebar-user-name">
+                                {user?.name || 'Loading...'}
+                            </div>
+                            <div className={`sidebar-user-plan${isFree ? ' free' : ''}`}>
+                                {planLabel}
+                            </div>
                         </div>
+                        <button
+                            className="sidebar-signout-btn"
+                            title="Sign out"
+                            onClick={(e) => { e.stopPropagation(); handleSignOut(); }}
+                            disabled={signingOut}
+                        >
+                            <LogOut size={15} />
+                        </button>
                     </div>
                 </div>
             </aside>
 
-            {/* Main content */}
+            {/* ── Main ────────────────────────────────── */}
             <div className="main-wrapper">
                 <header className="topbar">
                     <div className="topbar-left">
@@ -104,21 +168,24 @@ export default function Layout({ mode, setMode }) {
                         <div className="mode-toggle">
                             <button
                                 className={`mode-toggle-option${mode === 'assist' ? ' active' : ''}`}
-                                onClick={() => setMode('assist')}
+                                onClick={() => handleModeToggle('assist')}
+                                id="mode-assist-btn"
                             >
                                 <Hand size={14} />
                                 Assist
                             </button>
                             <button
                                 className={`mode-toggle-option${mode === 'autopilot' ? ' active' : ''}`}
-                                onClick={() => setMode('autopilot')}
+                                onClick={() => handleModeToggle('autopilot')}
+                                id="mode-autopilot-btn"
                             >
                                 <Bot size={14} />
                                 Autopilot
+                                {isFree && <span className="mode-toggle-lock">🔒</span>}
                             </button>
                         </div>
 
-                        <button className="btn-icon" title="Search">
+                        <button className="btn-icon" title="Search (Ctrl+K)">
                             <Search size={18} />
                         </button>
                         <button className="btn-icon" title="Notifications" style={{ position: 'relative' }}>
@@ -132,9 +199,37 @@ export default function Layout({ mode, setMode }) {
                 </header>
 
                 <main className="main-content">
-                    <Outlet />
+                    <Outlet context={{ user, mode }} />
                 </main>
             </div>
+
+            {/* ── Upgrade Modal (free → autopilot) ─── */}
+            {showUpgradeModal && (
+                <div className="modal-overlay" onClick={() => setShowUpgradeModal(false)}>
+                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="modal-title">Autopilot requires an upgrade</h3>
+                        <p className="modal-body">
+                            Autopilot mode lets AI agents post, engage, and execute marketing actions autonomously.
+                            It's available on the <strong>Indie plan</strong> and above.
+                        </p>
+                        <div className="modal-actions">
+                            <button
+                                className="landing-btn-pill"
+                                onClick={() => { setShowUpgradeModal(false); navigate('/settings'); }}
+                            >
+                                See Plans
+                            </button>
+                            <button
+                                className="landing-btn-ghost-outline"
+                                style={{ padding: '10px 20px', fontSize: '0.813rem' }}
+                                onClick={() => setShowUpgradeModal(false)}
+                            >
+                                Stay on Free Trial
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

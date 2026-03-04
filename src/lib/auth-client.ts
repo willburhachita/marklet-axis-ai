@@ -1,18 +1,24 @@
 /**
  * Better Auth Client — Frontend
  *
- * This is used in React components to handle sign-in, sign-up,
- * sign-out, and session management on the client side.
+ * Official setup per https://labs.convex.dev/better-auth/framework-guides/react
+ *
+ * baseURL = VITE_CONVEX_SITE_URL (the Convex site domain where HTTP routes live)
+ * crossDomainClient: handles cross-origin auth (stores session in localStorage,
+ *   forwards cookies via headers, rewrites OAuth callback URLs)
  */
 
-import { convexClient } from "@convex-dev/better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import {
+    convexClient,
+    crossDomainClient,
+} from "@convex-dev/better-auth/client/plugins";
 
 export const authClient = createAuthClient({
-    plugins: [convexClient()],
+    baseURL: import.meta.env.VITE_CONVEX_SITE_URL,
+    plugins: [convexClient(), crossDomainClient()],
 });
 
-// Re-export useful hooks
 export const {
     signIn,
     signUp,

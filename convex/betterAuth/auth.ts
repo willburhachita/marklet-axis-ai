@@ -1,31 +1,31 @@
-import { createClient } from "@convex-dev/better-auth";
-import { convex } from "@convex-dev/better-auth/plugins";
-import type { GenericCtx } from "@convex-dev/better-auth/utils";
-import type { BetterAuthOptions } from "better-auth";
-import { betterAuth } from "better-auth";
+import { createClient, type GenericCtx } from "@convex-dev/better-auth";
+import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { components } from "../_generated/api";
 import type { DataModel } from "../_generated/dataModel";
+import { betterAuth } from "better-auth/minimal";
 import authConfig from "../auth.config";
-import schema from "./schema";
 
-// Better Auth Component
-export const authComponent = createClient<DataModel, typeof schema>(
-    components.betterAuth,
-    {
-        local: { schema },
-        verbose: false,
-    },
-);
+// The component client — has adapter methods + helpers for integrating Convex with Better Auth
+export const authComponent = createClient<DataModel>(components.betterAuth);
 
-// Better Auth Options
-export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
-    return {
-        appName: "MarketAxis AI",
-        baseURL: process.env.SITE_URL,
+// SITE_URL = the frontend URL (http://localhost:5173 in dev)
+// The crossDomain plugin uses this to rewrite OAuth callback URLs
+const siteUrl = process.env.SITE_URL!;
+
+export const createAuth = (ctx: GenericCtx<DataModel>) => {
+    return betterAuth({
+        // Allow requests from the frontend origin
+        trustedOrigins: [
+            siteUrl,
+            "http://localhost:5173",
+            "http://localhost:3000",
+        ],
         secret: process.env.BETTER_AUTH_SECRET,
         database: authComponent.adapter(ctx),
+        appName: "MarketAxis AI",
         emailAndPassword: {
             enabled: true,
+            requireEmailVerification: false,
         },
         socialProviders: {
             github: {
@@ -37,14 +37,11 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
             },
         },
-        plugins: [convex({ authConfig })],
-    } satisfies BetterAuthOptions;
-};
-
-// For `@better-auth/cli`
-export const options = createAuthOptions({} as GenericCtx<DataModel>);
-
-// Better Auth Instance
-export const createAuth = (ctx: GenericCtx<DataModel>) => {
-    return betterAuth(createAuthOptions(ctx));
+        plugins: [
+            // crossDomain: required for React SPA where auth server & frontend are different origins
+            crossDomain({ siteUrl }),
+            // convex: required for Convex compatibility (auth token verification)
+            convex({ authConfig }),
+        ],
+    });
 };

@@ -83,14 +83,21 @@ ${profile.competitors?.length ? `Competitors: ${profile.competitors.join(", ")}`
 
             return { success: true };
         } catch (error) {
-            // Log failure
+            const msg = String(error);
+            const isQuota = msg.includes("quota") || msg.includes("429") || msg.includes("Too Many Requests");
+            const friendlyMsg = isQuota
+                ? "AI quota exceeded — please wait a few minutes and try again."
+                : msg;
+
             await ctx.runMutation(api.agentLogs.completeExecution, {
                 logId,
-                output: String(error),
+                output: friendlyMsg,
                 status: "failed",
                 duration: Date.now() - startTime,
             });
-            throw error;
+
+            // Return error info so the client can show it gracefully
+            return { success: false, error: friendlyMsg, isQuotaError: isQuota };
         }
     },
 });
@@ -168,13 +175,15 @@ ${strategy ? `Brand Tone: ${strategy.brandVoice.tone}` : ""}`;
 
             return { success: true, contentId };
         } catch (error) {
+            const msg = String(error);
+            const isQuota = msg.includes("quota") || msg.includes("429") || msg.includes("Too Many Requests");
             await ctx.runMutation(api.agentLogs.completeExecution, {
                 logId,
-                output: String(error),
+                output: isQuota ? "AI quota exceeded — try again in a few minutes." : msg,
                 status: "failed",
                 duration: Date.now() - startTime,
             });
-            throw error;
+            return { success: false, error: isQuota ? "AI quota exceeded — try again in a few minutes." : msg, isQuotaError: isQuota };
         }
     },
 });
@@ -257,13 +266,15 @@ Asset type: ${assetType}`;
 
             return { success: true };
         } catch (error) {
+            const msg = String(error);
+            const isQuota = msg.includes("quota") || msg.includes("429") || msg.includes("Too Many Requests");
             await ctx.runMutation(api.agentLogs.completeExecution, {
                 logId,
-                output: String(error),
+                output: isQuota ? "AI quota exceeded — try again in a few minutes." : msg,
                 status: "failed",
                 duration: Date.now() - startTime,
             });
-            throw error;
+            return { success: false, error: isQuota ? "AI quota exceeded — try again in a few minutes." : msg, isQuotaError: isQuota };
         }
     },
 });
@@ -350,13 +361,15 @@ The current date is ${new Date().toISOString().split("T")[0]}.`;
 
             return { success: true };
         } catch (error) {
+            const msg = String(error);
+            const isQuota = msg.includes("quota") || msg.includes("429") || msg.includes("Too Many Requests");
             await ctx.runMutation(api.agentLogs.completeExecution, {
                 logId,
-                output: String(error),
+                output: isQuota ? "AI quota exceeded — try again in a few minutes." : msg,
                 status: "failed",
                 duration: Date.now() - startTime,
             });
-            throw error;
+            return { success: false, error: isQuota ? "AI quota exceeded — try again in a few minutes." : msg, isQuotaError: isQuota };
         }
     },
 });
