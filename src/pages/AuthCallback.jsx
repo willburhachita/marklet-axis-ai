@@ -25,11 +25,6 @@ export default function AuthCallback() {
         session ? {} : 'skip'
     );
 
-    const profile = useQuery(
-        api.appProfiles.getByUser,
-        user ? { userId: user._id } : 'skip'
-    );
-
     useEffect(() => {
         if (isPending) return;
 
@@ -56,14 +51,10 @@ export default function AuthCallback() {
     }, [isPending, session]);
 
     useEffect(() => {
-        if (!session || user === undefined || profile === undefined) return;
+        if (!session || user === undefined) return;
 
-        if (profile === null) {
-            navigate('/onboarding', { replace: true });
-        } else {
-            navigate('/overview', { replace: true });
-        }
-    }, [session, user, profile, navigate]);
+        navigate('/overview', { replace: true });
+    }, [session, user, navigate]);
 
     return (
         <div className="auth-callback-page">

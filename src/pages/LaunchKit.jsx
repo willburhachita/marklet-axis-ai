@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useOutletContext, useParams } from 'react-router-dom';
 import {
     Sparkles, Eye, Edit3, Rocket, Newspaper, Mail,
-    Twitter, Linkedin, ClipboardList, ArrowRight,
+    Twitter, Linkedin, ClipboardList, ArrowRight, Loader2,
 } from 'lucide-react';
-import { mockLaunchAssets } from '../data/mockData';
+import { useQuery, useAction, useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api.js';
 
 const assetTypeConfig = {
     product_hunt: { label: 'Product Hunt', icon: Rocket },
@@ -15,11 +17,88 @@ const assetTypeConfig = {
 };
 
 export default function LaunchKit() {
+    const { user } = useOutletContext();
+    const { projectId } = useParams();
     const [viewing, setViewing] = useState(null);
+    const [generating, setGenerating] = useState(false);
+    const [genError, setGenError] = useState('');
 
-    const readyCount = mockLaunchAssets.filter((a) => a.status === 'ready').length;
-    const totalCount = mockLaunchAssets.length;
-    const pct = Math.round((readyCount / totalCount) * 100);
+    // Real data from Convex
+    const profile = useQuery(
+        api.appProfiles.getById,
+        projectId ? { profileId: projectId } : 'skip'
+    );
+    const launchAssets = useQuery(
+        api.launchAssets.getByProfile,
+        profile ? { appProfileId: profile._id } : 'skip'
+    );
+
+    const generateLaunchKit = useAction(api.agentActions.generateLaunchKit);
+    const updateStatus = useMutation(api.launchAssets.updateStatus);
+
+    console.log('[LaunchKit] Data:', {
+        profileId: profile?._id,
+        assetsCount: launchAssets?.length,
+    });
+
+    const handleGenerateAll = async () => {
+        if (!profile || !user) return;
+        console.log('[LaunchKit] Generating all launch assets...');
+        setGenerating(true);
+        setGenError('');
+        try {
+            const result = await generateLaunchKit({ appProfileId: profile._id, userId: user._id });
+            console.log('[LaunchKit] Generation result:', result);
+            if (!result.success) setGenError(result.error || 'Generation failed');
+        } catch (err) {
+            console.error('[LaunchKit] Generation error:', err);
+            setGenError(err?.message || 'Failed to generate');
+        }
+        setGenerating(false);
+    };
+
+    // Loading
+    if (!user || profile === undefined) {
+        return (
+            <div className="animate-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+                <Loader2 size={32} className="onboarding-gen-spin" />
+            </div>
+        );
+    }
+
+    const assets = launchAssets || [];
+    const readyCount = assets.filter((a) => a.status === 'ready').length;
+    const totalCount = assets.length;
+    const pct = totalCount > 0 ? Math.round((readyCount / totalCount) * 100) : 0;
+
+    // Empty state
+    if (assets.length === 0 && !generating) {
+        return (
+            <div className="animate-fade-in">
+                <div className="page-header">
+                    <div className="page-header-left">
+                        <h1>Launch Kit</h1>
+                        <p>Pre-packaged launch assets for every platform</p>
+                    </div>
+                </div>
+                {genError && (
+                    <div style={{ padding: 'var(--space-3)', marginBottom: 'var(--space-4)', background: 'var(--error-muted)', color: 'var(--error)', borderRadius: 'var(--radius-md)', fontSize: '0.813rem' }}>
+                        ⚠️ {genError}
+                    </div>
+                )}
+                <div className="card" style={{ padding: 'var(--space-8)', textAlign: 'center' }}>
+                    <Rocket size={48} style={{ color: 'var(--warning)', marginBottom: 'var(--space-4)', opacity: 0.6 }} />
+                    <h3 style={{ marginBottom: 'var(--space-2)' }}>No launch assets yet</h3>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>
+                        Generate your launch kit to get Product Hunt, Hacker News, and press-ready assets.
+                    </p>
+                    <button className="btn btn-primary" onClick={handleGenerateAll} disabled={generating}>
+                        {generating ? <><Loader2 size={16} className="onboarding-gen-spin" /> Generating...</> : <><Sparkles size={16} /> Generate your launch kit</>}
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="animate-fade-in">
@@ -29,11 +108,18 @@ export default function LaunchKit() {
                     <p>Pre-packaged launch assets for every platform</p>
                 </div>
                 <div className="page-header-actions">
-                    <button className="btn btn-primary">
-                        <Sparkles size={16} /> Generate all
+                    <button className="btn btn-primary" onClick={handleGenerateAll} disabled={generating}>
+                        <Sparkles size={16} />
+                        {generating ? 'Generating...' : 'Generate all'}
                     </button>
                 </div>
             </div>
+
+            {genError && (
+                <div style={{ padding: 'var(--space-3)', marginBottom: 'var(--space-4)', background: 'var(--error-muted)', color: 'var(--error)', borderRadius: 'var(--radius-md)', fontSize: '0.813rem' }}>
+                    ⚠️ {genError}
+                </div>
+            )}
 
             {/* Readiness bar */}
             <div className="card mb-6">
@@ -51,9 +137,9 @@ export default function LaunchKit() {
                 </div>
             </div>
 
-            {/* Asset grid - prompt-card style */}
+            {/* Asset grid */}
             <div className="prompt-grid stagger">
-                {mockLaunchAssets.map((asset) => {
+                {assets.map((asset) => {
                     const config = assetTypeConfig[asset.assetType] || { label: asset.assetType, icon: ClipboardList };
                     const IconComp = config.icon;
                     return (
@@ -69,7 +155,16 @@ export default function LaunchKit() {
                                 }}>
                                     <IconComp />
                                 </div>
-                                <span className={`badge ${asset.status === 'ready' ? 'badge-success' : 'badge-warning'}`}>
+                                <span
+                                    className={`badge ${asset.status === 'ready' ? 'badge-success' : asset.status === 'submitted' ? 'badge-info' : 'badge-warning'}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const next = asset.status === 'draft' ? 'ready' : asset.status === 'ready' ? 'submitted' : 'draft';
+                                        console.log('[LaunchKit] Toggling status:', asset._id, '->', next);
+                                        updateStatus({ assetId: asset._id, status: next });
+                                    }}
+                                    style={{ cursor: 'pointer' }}
+                                >
                                     {asset.status}
                                 </span>
                             </div>
@@ -80,9 +175,6 @@ export default function LaunchKit() {
                             <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                                 <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setViewing(viewing === asset._id ? null : asset._id); }}>
                                     <Eye size={14} /> View
-                                </button>
-                                <button className="btn btn-ghost btn-sm" onClick={(e) => e.stopPropagation()}>
-                                    <Edit3 size={14} /> Edit
                                 </button>
                             </div>
                             <div className="prompt-card-arrow"><ArrowRight size={16} /></div>
@@ -101,6 +193,16 @@ export default function LaunchKit() {
                     );
                 })}
             </div>
+
+            {generating && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                    <div className="card" style={{ padding: 'var(--space-6)', textAlign: 'center', maxWidth: 400 }}>
+                        <Loader2 size={32} className="onboarding-gen-spin" style={{ marginBottom: 'var(--space-3)', color: 'var(--primary)' }} />
+                        <h3>Generating Launch Kit</h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.813rem' }}>Creating 6 launch assets with AI... This may take a minute.</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

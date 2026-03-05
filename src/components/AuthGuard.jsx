@@ -29,11 +29,6 @@ export default function AuthGuard({ children }) {
         session ? {} : 'skip'
     );
 
-    const profile = useQuery(
-        api.appProfiles.getByUser,
-        user?._id ? { userId: user._id } : 'skip'
-    );
-
     useEffect(() => {
         if (isPending && !expired) return; // still loading, within time window
 
@@ -43,12 +38,8 @@ export default function AuthGuard({ children }) {
             return;
         }
 
-        if (user === undefined || profile === undefined) return; // Convex still loading
-
-        if (profile === null) {
-            navigate('/onboarding', { replace: true });
-        }
-    }, [expired, isPending, session, user, profile, navigate]);
+        if (user === undefined) return; // Convex still loading
+    }, [expired, isPending, session, user, navigate]);
 
     // Show loading spinner during the grace period
     if (isPending && !expired) {
@@ -60,7 +51,7 @@ export default function AuthGuard({ children }) {
         );
     }
 
-    if (!session || !user || profile === null) return null;
+    if (!session || !user) return null;
 
     return children;
 }

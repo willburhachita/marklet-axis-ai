@@ -174,7 +174,7 @@ Free Trial limits (enforced in UI, not backend — MVP):
 - [ ] `SITE_URL` — `http://localhost:5173`
 - [ ] `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` — from GitHub OAuth App
 - [ ] `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` — from Google Cloud Console
-- [ ] `GOOGLE_GEMINI_API_KEY` — from Google AI Studio
+- [ ] `DO_INFERENCE_API_KEY` — from DigitalOcean Gradient AI Platform → Serverless Inference
 - [ ] `COMPOSIO_API_KEY` — from Composio dashboard
 
 ### 0.3 Generate Better Auth Schema
@@ -970,7 +970,7 @@ These are things that **cannot be done via code** and require manual action by y
 | 2 | **Run `npx convex dev`** | Terminal in `app/` directory | Creates project, generates types — I can run the command but you need to log in via browser |
 | 3 | **Create a GitHub OAuth App** | [github.com/settings/developers](https://github.com/settings/developers) → New OAuth App | Homepage URL: `http://localhost:5173`, Callback URL: `https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/github` |
 | 4 | **Create a Google OAuth Client** | [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials) | Web application type, add redirect URI: `https://YOUR-DEPLOYMENT.convex.site/api/auth/callback/google` |
-| 5 | **Get a Google Gemini API key** | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) | Free tier gives 60 requests/minute |
+| 5 | **Get a DigitalOcean Model Access Key** | [cloud.digitalocean.com](https://cloud.digitalocean.com) → Gradient AI Platform → Serverless Inference | Create a Model Access Key for API access |
 | 6 | **Get a Composio API key** | [composio.dev](https://composio.dev) | Sign up → Dashboard → API Keys |
 | 7 | **Set up Composio integrations** | Composio Dashboard → Integrations | Enable Twitter, LinkedIn, and GitHub integrations — each needs its own OAuth app credentials on the respective platforms |
 | 8 | **Set Convex environment variables** | Run the npx convex env set commands listed in Phase 0.2 | You'll need the keys from steps 3-6 |

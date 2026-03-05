@@ -6,6 +6,17 @@ import { api } from '../../convex/_generated/api.js';
 import { useSession } from '../lib/auth-client.ts';
 
 const PLATFORMS = ['Web', 'iOS', 'Android', 'Desktop', 'Chrome Extension'];
+const TARGET_AUDIENCES = [
+    'Indie Developers',
+    'Small Startups',
+    'Enterprise Teams',
+    'Content Creators',
+    'E-commerce Sellers',
+    'Mobile Users',
+    'SaaS Customers',
+    'Students & Educators',
+    'Other',
+];
 const REGIONS = ['Global', 'North America', 'Europe', 'Asia Pacific', 'Latin America', 'Africa'];
 const STAGES = [
     { value: 'idea', label: 'Idea' },
@@ -40,7 +51,8 @@ export default function Onboarding() {
     const [form, setForm] = useState({
         appName: '',
         description: '',
-        targetAudience: '',
+        targetAudiences: [],
+        customAudience: '',
         platforms: [],
         region: 'Global',
         stage: 'mvp',
@@ -62,11 +74,32 @@ export default function Onboarding() {
         }));
     };
 
+    const toggleAudience = (a) => {
+        setForm((f) => ({
+            ...f,
+            targetAudiences: f.targetAudiences.includes(a)
+                ? f.targetAudiences.filter((x) => x !== a)
+                : [...f.targetAudiences, a],
+        }));
+        setError('');
+    };
+
+    // Compose the audience string from selections
+    const buildAudienceString = () => {
+        const selected = form.targetAudiences.filter((a) => a !== 'Other');
+        if (form.targetAudiences.includes('Other') && form.customAudience.trim()) {
+            selected.push(form.customAudience.trim());
+        }
+        return selected.join(', ');
+    };
+
     const validate = () => {
         if (!form.appName.trim()) return 'App name is required';
         if (!form.description.trim() || form.description.trim().length < 10)
             return 'Description must be at least 10 characters';
-        if (!form.targetAudience.trim()) return 'Target audience is required';
+        if (form.targetAudiences.length === 0) return 'Select at least one target audience';
+        if (form.targetAudiences.includes('Other') && !form.customAudience.trim())
+            return 'Please specify your custom target audience';
         if (form.platforms.length === 0) return 'Select at least one platform';
         return null;
     };
@@ -87,7 +120,7 @@ export default function Onboarding() {
                 userId: user._id,
                 appName: form.appName.trim(),
                 description: form.description.trim(),
-                targetAudience: form.targetAudience.trim(),
+                targetAudience: buildAudienceString(),
                 platforms: form.platforms,
                 region: form.region,
                 stage: form.stage,
@@ -150,7 +183,7 @@ export default function Onboarding() {
                 userId: user._id,
                 appName: form.appName.trim(),
                 description: form.description.trim(),
-                targetAudience: form.targetAudience.trim(),
+                targetAudience: buildAudienceString(),
                 platforms: form.platforms,
                 region: form.region,
                 stage: form.stage,
@@ -252,13 +285,28 @@ export default function Onboarding() {
                         {/* Target Audience */}
                         <div className="auth-field">
                             <label className="auth-label">Who is your target audience? <span className="onboarding-required">*</span></label>
-                            <input
-                                className="auth-input"
-                                type="text"
-                                placeholder="e.g. Indie developers who want to grow their user base"
-                                value={form.targetAudience}
-                                onChange={(e) => setField('targetAudience', e.target.value)}
-                            />
+                            <div className="onboarding-chips">
+                                {TARGET_AUDIENCES.map((a) => (
+                                    <button
+                                        key={a}
+                                        type="button"
+                                        className={`onboarding-chip${form.targetAudiences.includes(a) ? ' selected' : ''}`}
+                                        onClick={() => toggleAudience(a)}
+                                    >
+                                        {a}
+                                    </button>
+                                ))}
+                            </div>
+                            {form.targetAudiences.includes('Other') && (
+                                <input
+                                    className="auth-input"
+                                    type="text"
+                                    placeholder="Describe your target audience..."
+                                    value={form.customAudience}
+                                    onChange={(e) => setField('customAudience', e.target.value)}
+                                    style={{ marginTop: '0.5rem' }}
+                                />
+                            )}
                         </div>
 
                         {/* Platforms */}

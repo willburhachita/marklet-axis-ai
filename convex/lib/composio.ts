@@ -15,6 +15,9 @@ interface ComposioConfig {
     baseUrl: string;
 }
 
+// Convex actions run in a Node.js-compatible environment that exposes process.env
+declare const process: { env: Record<string, string | undefined> };
+
 function getConfig(): ComposioConfig {
     const apiKey = process.env.COMPOSIO_API_KEY;
     if (!apiKey) {
@@ -24,7 +27,7 @@ function getConfig(): ComposioConfig {
     }
     return {
         apiKey,
-        baseUrl: "https://backend.composio.dev/api/v2",
+        baseUrl: "https://backend.composio.dev/api/v3",
     };
 }
 
@@ -69,7 +72,7 @@ export async function getConnectionStatus(
 
     try {
         const response = await fetch(
-            `${config.baseUrl}/connectedAccounts?entityId=${entityId}&integrationId=${integrationId}`,
+            `${config.baseUrl}/connected_accounts?entityId=${entityId}&integrationId=${integrationId}`,
             {
                 headers: {
                     "x-api-key": config.apiKey,
@@ -124,7 +127,7 @@ export async function initiateConnection(
         body.useComposioAuth = true;
     }
 
-    const response = await fetch(`${config.baseUrl}/connectedAccounts`, {
+    const response = await fetch(`${config.baseUrl}/connected_accounts`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

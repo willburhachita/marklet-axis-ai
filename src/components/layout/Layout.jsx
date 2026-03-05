@@ -9,8 +9,7 @@ import { api } from '../../../convex/_generated/api.js';
 import { signOut } from '../../lib/auth-client.ts';
 
 const navItems = [
-    { to: '/overview', label: 'Overview', icon: LayoutDashboard },
-    { to: '/strategy', label: 'Strategy', icon: Target },
+    { to: '/overview', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/content', label: 'Content Studio', icon: PenTool },
     { to: '/launch', label: 'Launch Kit', icon: Rocket },
     { to: '/codebase', label: 'Codebase', icon: Code2 },
@@ -37,9 +36,18 @@ export default function Layout() {
 
     const mode = user?.mode || 'assist';
 
+    const match = location.pathname.match(/\/project\/([^\/]+)/);
+    const projectId = match ? match[1] : null;
+
     const currentPage = navItems.find(
-        (item) => location.pathname.startsWith(item.to)
+        (item) => location.pathname.includes(item.to)
     );
+
+    // If we have a project ID, the base becomes /project/:id, otherwise we fall back to /overview hub.
+    const buildPath = (path) => {
+        if (!projectId) return '/overview';
+        return `/project/${projectId}${path}`;
+    };
 
     const handleModeToggle = async (newMode) => {
         if (!user) return;
@@ -76,13 +84,21 @@ export default function Layout() {
 
                 <nav className="sidebar-nav">
                     <div className="sidebar-section-title">Main</div>
-                    {navItems.slice(0, 4).map((item) => (
+                    {/* Hardcode the Project Hub button purely for the hub */}
+                    <NavLink to="/overview" className={({ isActive }) => `sidebar-link${isActive && !projectId ? ' active' : ''}`}>
+                        <FolderOpen />
+                        <span>All Projects</span>
+                    </NavLink>
+
+                    {navItems.slice(0, 3).map((item) => (
                         <NavLink
                             key={item.to}
-                            to={item.to}
+                            to={buildPath(item.to)}
                             className={({ isActive }) =>
-                                `sidebar-link${isActive ? ' active' : ''}`
+                                `sidebar-link${isActive && projectId ? ' active' : ''}`
                             }
+                            onClick={e => !projectId && e.preventDefault()}
+                            style={{ opacity: projectId ? 1 : 0.5 }}
                         >
                             <item.icon />
                             <span>{item.label}</span>
@@ -90,13 +106,15 @@ export default function Layout() {
                     ))}
 
                     <div className="sidebar-section-title">Intelligence</div>
-                    {navItems.slice(4, 6).map((item) => (
+                    {navItems.slice(3, 5).map((item) => (
                         <NavLink
                             key={item.to}
-                            to={item.to}
+                            to={buildPath(item.to)}
                             className={({ isActive }) =>
-                                `sidebar-link${isActive ? ' active' : ''}`
+                                `sidebar-link${isActive && projectId ? ' active' : ''}`
                             }
+                            onClick={e => !projectId && e.preventDefault()}
+                            style={{ opacity: projectId ? 1 : 0.5 }}
                         >
                             <item.icon />
                             <span>{item.label}</span>
@@ -104,13 +122,15 @@ export default function Layout() {
                     ))}
 
                     <div className="sidebar-section-title">Account</div>
-                    {navItems.slice(6).map((item) => (
+                    {navItems.slice(5).map((item) => (
                         <NavLink
                             key={item.to}
-                            to={item.to}
+                            to={buildPath(item.to)}
                             className={({ isActive }) =>
-                                `sidebar-link${isActive ? ' active' : ''}`
+                                `sidebar-link${isActive && projectId ? ' active' : ''}`
                             }
+                            onClick={e => !projectId && e.preventDefault()}
+                            style={{ opacity: projectId ? 1 : 0.5 }}
                         >
                             <item.icon />
                             <span>{item.label}</span>

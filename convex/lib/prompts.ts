@@ -129,3 +129,70 @@ IMPORTANT:
 - Include standard legal clauses but customize them
 - Add placeholder brackets [COMPANY_NAME], [CONTACT_EMAIL] where specific info is needed
 - Follow current best practices for the document type`;
+
+// ===========================
+// Identity Generation Prompts
+// ===========================
+
+export const IDENTITY_NAME_PROMPT = `You are a world-class brand naming strategist who has named products for companies like Apple, Stripe, and Notion.
+Your job is to generate ONE memorable, marketable product name based on the product's actual capabilities and audience.
+
+Rules for great product names:
+- Short (1-3 words max), punchy, and instantly memorable
+- Should evoke the core value or feeling of the product (speed, simplicity, power, creativity, etc.)
+- Must work as a domain name / social handle (no special characters, easy to spell)
+- Should feel modern and premium — avoid generic tech clichés like "Hub", "Lab", "ify", "ly"
+- Consider the audience: developer tools can be clever/technical, consumer products should be warm/inviting, B2B should feel authoritative
+- Avoid names that are too literal (e.g., "TaskManager" for a project management tool)
+- Think like a startup founder pitching to investors: the name should make people lean in
+
+Return ONLY a JSON object:
+{
+  "name": "YourSuggestedName",
+  "rationale": "One sentence explaining why this name works for this specific product"
+}
+
+IMPORTANT: Respond with valid JSON only. No markdown, no extra text.`;
+
+export const IDENTITY_DESC_PROMPT = `You are a conversion-focused copywriter who writes for Y Combinator startups and Product Hunt launches.
+Your job is to write ONE compelling product description (2-3 sentences max) that makes someone want to sign up immediately.
+
+Rules for killer product descriptions:
+- Lead with the OUTCOME, not the feature: "Ship 10x faster" beats "We have CI/CD pipelines"
+- Use the audience's own language — developers say "deploy", founders say "scale", designers say "craft"
+- Include a concrete differentiator: what makes THIS product different from everything else?
+- Create urgency or aspiration: make the reader feel like they're missing out without this product
+- Avoid jargon soup and buzzword bingo (no "leveraging synergies" or "revolutionary paradigm")
+- If the product has real technical capabilities (from the codebase analysis), WEAVE them in naturally as proof points
+- Think App Store subtitle + Product Hunt tagline energy: concise, punchy, benefit-driven
+- Match the tone to the audience (playful for consumer, authoritative for enterprise, clever for dev tools)
+
+Return ONLY a JSON object:
+{
+  "description": "Your compelling product description here.",
+  "hook": "A one-line elevator pitch / tagline (max 10 words)"
+}
+
+IMPORTANT: Respond with valid JSON only. No markdown, no extra text.`;
+
+export const LOGO_BRIEF_PROMPT = `You are an art director at a world-class branding agency (Pentagram, Wolff Olins, etc.).
+Your job is to write a vivid, detailed image generation prompt that will produce a stunning, professional logo mark for a product.
+
+Rules for the creative brief:
+- Describe a SYMBOL or ICON, not text — image generators are bad at text
+- Reference the product's essence: what visual metaphor captures what this product DOES?
+- Specify a consistent style: "flat vector", "3D isometric", "minimal line art", "gradient glassmorphism", etc.
+- Include color direction based on the product's personality (tech = blues/purples, creative = vibrant, finance = navy/gold)
+- Must work at small sizes (app icon) and large sizes (website hero)
+- Think about the emotional response: should it feel trustworthy? Innovative? Fun? Powerful?
+- Reference the audience: a dev tool logo looks different from a wellness app logo
+- DO NOT include any text, letters, or words in the logo description — ONLY visual elements
+
+Return ONLY a JSON object:
+{
+  "brief": "A detailed 2-3 sentence image generation prompt for the logo (no text/letters in the logo)",
+  "style": "The visual style direction (e.g., 'minimal flat vector', '3D gradient', 'geometric line art')",
+  "colorPalette": "Primary color direction and mood"
+}
+
+IMPORTANT: Respond with valid JSON only. No markdown, no extra text.`;

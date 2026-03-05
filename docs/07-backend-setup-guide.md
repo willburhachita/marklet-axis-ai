@@ -13,10 +13,10 @@ MarketAxis AI Backend
 │   ├── 10 Query/Mutation Files
 │   ├── 1 Agent Actions File (5 AI actions)
 │   └── Lib Helpers
-│       ├── llm.ts (Google Gemini)
+│       ├── llm.ts (DigitalOcean Serverless Inference)
 │       ├── composio.ts (Social integrations)
 │       └── prompts.ts (Agent system prompts)
-├── Google Gemini (LLM)
+├── DigitalOcean Gradient AI (Serverless Inference LLM)
 └── Composio (Social platform actions)
 ```
 
@@ -51,8 +51,8 @@ npx convex env set GITHUB_CLIENT_SECRET "your-github-client-secret"
 npx convex env set GOOGLE_CLIENT_ID "your-google-client-id"
 npx convex env set GOOGLE_CLIENT_SECRET "your-google-client-secret"
 
-# Google Gemini (required for AI features)
-npx convex env set GOOGLE_GEMINI_API_KEY "your-gemini-api-key"
+# DigitalOcean Serverless Inference (required for AI features)
+npx convex env set DO_INFERENCE_API_KEY "your-model-access-key"
 
 # Composio (required for social posting)
 npx convex env set COMPOSIO_API_KEY "your-composio-api-key"
@@ -95,10 +95,11 @@ npm run dev
 3. Add authorized redirect URI: `https://your-deployment.convex.site/api/auth/callback/google`
 4. Copy Client ID and Secret
 
-### Google Gemini API
-1. Go to https://aistudio.google.com/app/apikey
-2. Create an API key
+### DigitalOcean Serverless Inference API
+1. Go to https://cloud.digitalocean.com → Gradient AI Platform → Serverless Inference
+2. Create a Model Access Key
 3. Copy the key
+4. Models used: `llama3.3-70b-instruct` (primary), `llama3-8b-instruct` (fallback)
 
 ### Composio
 1. Go to https://composio.dev
@@ -137,7 +138,7 @@ npm run dev
 | `convex/codebaseAnalysis.ts` | Analysis results |
 | `convex/resources.ts` | Document vault CRUD |
 | `convex/agentActions.ts` | 5 server-side AI actions |
-| `convex/lib/llm.ts` | Google Gemini wrapper |
+| `convex/lib/llm.ts` | DigitalOcean Serverless Inference wrapper |
 | `convex/lib/composio.ts` | Composio API wrapper |
 | `convex/lib/prompts.ts` | Agent system prompts |
 | `src/lib/auth-client.ts` | Frontend auth hooks |

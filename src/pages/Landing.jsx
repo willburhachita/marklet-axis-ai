@@ -4,6 +4,7 @@ import {
     ArrowRight, Menu, X, Target, PenTool, Rocket,
     Code2, Shield, Zap, Github, ChevronDown,
 } from 'lucide-react';
+import { useSession } from '../lib/auth-client.ts';
 
 /* ═══════════════════════════════════════════ */
 /* LANDING HEADER                              */
@@ -11,6 +12,7 @@ import {
 function LandingHeader() {
     const navigate = useNavigate();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const { data: session } = useSession();
 
     return (
         <header className="landing-header">
@@ -31,12 +33,20 @@ function LandingHeader() {
 
                     {/* CTA */}
                     <div className="landing-header-cta">
-                        <button className="landing-btn-ghost" onClick={() => navigate('/auth')}>
-                            Sign in
-                        </button>
-                        <button className="landing-btn-pill" onClick={() => navigate('/auth')}>
-                            Get Started
-                        </button>
+                        {session ? (
+                            <button className="landing-btn-pill" onClick={() => navigate('/overview')}>
+                                Continue to Dashboard
+                            </button>
+                        ) : (
+                            <>
+                                <button className="landing-btn-ghost" onClick={() => navigate('/auth')}>
+                                    Sign in
+                                </button>
+                                <button className="landing-btn-pill" onClick={() => navigate('/auth')}>
+                                    Get Started
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     {/* Mobile hamburger */}
@@ -52,9 +62,15 @@ function LandingHeader() {
                     <a href="#features" onClick={() => setMobileOpen(false)}>Features</a>
                     <a href="#showcase" onClick={() => setMobileOpen(false)}>Product</a>
                     <a href="#pricing" onClick={() => setMobileOpen(false)}>Pricing</a>
-                    <button className="landing-btn-pill" style={{ width: '100%', marginTop: 8 }} onClick={() => { setMobileOpen(false); navigate('/auth'); }}>
-                        Get Started
-                    </button>
+                    {session ? (
+                        <button className="landing-btn-pill" style={{ width: '100%', marginTop: 8 }} onClick={() => { setMobileOpen(false); navigate('/overview'); }}>
+                            Continue to Dashboard
+                        </button>
+                    ) : (
+                        <button className="landing-btn-pill" style={{ width: '100%', marginTop: 8 }} onClick={() => { setMobileOpen(false); navigate('/auth'); }}>
+                            Get Started
+                        </button>
+                    )}
                 </div>
             )}
         </header>
@@ -66,6 +82,7 @@ function LandingHeader() {
 /* ═══════════════════════════════════════════ */
 function LandingHero() {
     const navigate = useNavigate();
+    const { data: session } = useSession();
 
     return (
         <section className="landing-hero">
@@ -78,9 +95,15 @@ function LandingHero() {
                     generate content, and grow your user base — while you keep building.
                 </p>
                 <div className="landing-hero-ctas">
-                    <button className="landing-btn-pill landing-btn-lg" onClick={() => navigate('/auth')}>
-                        Get Started Free <ArrowRight size={16} />
-                    </button>
+                    {session ? (
+                        <button className="landing-btn-pill landing-btn-lg" onClick={() => navigate('/overview')}>
+                            Continue to Dashboard <ArrowRight size={16} />
+                        </button>
+                    ) : (
+                        <button className="landing-btn-pill landing-btn-lg" onClick={() => navigate('/auth')}>
+                            Get Started Free <ArrowRight size={16} />
+                        </button>
+                    )}
                     <a href="#showcase" className="landing-btn-ghost-outline">
                         See how it works
                     </a>
@@ -284,6 +307,7 @@ function Pricing() {
 /* ═══════════════════════════════════════════ */
 function CtaSection() {
     const navigate = useNavigate();
+    const { data: session } = useSession();
 
     return (
         <section className="landing-cta-section">
@@ -291,9 +315,15 @@ function CtaSection() {
                 <div className="landing-cta-card">
                     <h2 className="landing-cta-title">Ready to launch?</h2>
                     <p className="landing-cta-sub">Your app deserves to be found. MarketAxis AI handles everything after you ship.</p>
-                    <button className="landing-btn-pill landing-btn-lg" onClick={() => navigate('/auth')}>
-                        Get Started Free <ArrowRight size={16} />
-                    </button>
+                    {session ? (
+                        <button className="landing-btn-pill landing-btn-lg" onClick={() => navigate('/overview')}>
+                            Continue to Dashboard <ArrowRight size={16} />
+                        </button>
+                    ) : (
+                        <button className="landing-btn-pill landing-btn-lg" onClick={() => navigate('/auth')}>
+                            Get Started Free <ArrowRight size={16} />
+                        </button>
+                    )}
                     <p className="landing-hero-note" style={{ marginTop: 16 }}>Setup takes 2 minutes</p>
                 </div>
             </div>

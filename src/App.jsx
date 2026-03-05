@@ -12,6 +12,8 @@ import LaunchKit from './pages/LaunchKit';
 import Codebase from './pages/Codebase';
 import Resources from './pages/Resources';
 import Settings from './pages/Settings';
+import ProjectHub from './pages/ProjectHub';
+import Wizard from './pages/Wizard';
 
 export default function App() {
   return (
@@ -31,13 +33,18 @@ export default function App() {
             </AuthGuard>
           }
         >
-          <Route path="overview" element={<Overview />} />
-          <Route path="strategy" element={<Strategy />} />
-          <Route path="content" element={<ContentStudio />} />
-          <Route path="launch" element={<LaunchKit />} />
-          <Route path="codebase" element={<Codebase />} />
-          <Route path="resources" element={<Resources />} />
-          <Route path="settings" element={<Settings />} />
+          {/* Hub */}
+          <Route path="overview" element={<ProjectHub />} />
+
+          {/* Project-specific Dashboard Hub */}
+          <Route path="project/:projectId/wizard" element={<Wizard />} />
+          <Route path="project/:projectId/overview" element={<Overview />} />
+          <Route path="project/:projectId/strategy" element={<Strategy />} />
+          <Route path="project/:projectId/content" element={<ContentStudio />} />
+          <Route path="project/:projectId/launch" element={<LaunchKit />} />
+          <Route path="project/:projectId/codebase" element={<Codebase />} />
+          <Route path="project/:projectId/resources" element={<Resources />} />
+          <Route path="project/:projectId/settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

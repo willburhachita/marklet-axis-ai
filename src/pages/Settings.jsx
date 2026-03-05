@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useOutletContext, useParams } from 'react-router-dom';
 import {
     Save, Hand, Bot, ExternalLink,
-    Twitter, Linkedin, Github, Mail, Camera,
+    Twitter, Linkedin, Github, Mail, Camera, Loader2, Check
 } from 'lucide-react';
-import { mockUser, mockAppProfile, mockSocialAccounts } from '../data/mockData';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api.js';
 
 const platformConfig = {
     twitter: { label: 'Twitter / X', icon: Twitter, color: 'var(--info)' },
@@ -14,11 +16,70 @@ const platformConfig = {
 };
 
 export default function Settings({ mode, setMode }) {
-    const [profile, setProfile] = useState(mockAppProfile);
+    const { user } = useOutletContext();
+    const { projectId } = useParams();
+    const [localProfile, setLocalProfile] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    // Convex queries
+    const profile = useQuery(
+        api.appProfiles.getById,
+        projectId ? { profileId: projectId } : 'skip'
+    );
+    const socialAccounts = useQuery(
+        api.socialAccounts.getByUser,
+        user ? { userId: user._id } : 'skip'
+    );
+
+    // Mutations
+    const updateProfile = useMutation(api.appProfiles.update);
+    const disconnectSocial = useMutation(api.socialAccounts.disconnect);
+
+    // Sync local state when profile loads
+    useEffect(() => {
+        if (profile && !localProfile) {
+            setLocalProfile(profile);
+            console.log('[Settings] Loaded profile:', profile);
+        }
+    }, [profile, localProfile]);
 
     const handleChange = (field, value) => {
-        setProfile((p) => ({ ...p, [field]: value }));
+        setLocalProfile((p) => ({ ...p, [field]: value }));
     };
+
+    const handleSave = async () => {
+        if (!localProfile) return;
+        setSaving(true);
+        console.log('[Settings] Saving profile updates...', localProfile);
+        try {
+            await updateProfile({
+                profileId: localProfile._id,
+                appName: localProfile.appName,
+                description: localProfile.description,
+                targetAudience: localProfile.targetAudience,
+                platforms: localProfile.platforms,
+                region: localProfile.region,
+                stage: localProfile.stage,
+                monetization: localProfile.monetization,
+                appUrl: localProfile.appUrl,
+            });
+            console.log('[Settings] Save successful');
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            console.error('[Settings] Save failed:', err);
+        }
+        setSaving(false);
+    };
+
+    if (!user || profile === undefined || !localProfile) {
+        return (
+            <div className="animate-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+                <Loader2 size={32} className="onboarding-gen-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="animate-fade-in">
@@ -28,8 +89,9 @@ export default function Settings({ mode, setMode }) {
                     <p>Manage your app profile, connections, and preferences</p>
                 </div>
                 <div className="page-header-actions">
-                    <button className="btn btn-primary">
-                        <Save size={16} /> Save changes
+                    <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                        {saving ? <Loader2 size={16} className="onboarding-gen-spin" /> : saved ? <Check size={16} /> : <Save size={16} />}
+                        {saving ? 'Saving...' : saved ? 'Saved' : 'Save changes'}
                     </button>
                 </div>
             </div>
@@ -85,27 +147,27 @@ export default function Settings({ mode, setMode }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                     <div>
                         <label className="input-label">App Name</label>
-                        <input className="input-field" value={profile.appName} onChange={(e) => handleChange('appName', e.target.value)} />
+                        <input className="input-field" value={localProfile.appName} onChange={(e) => handleChange('appName', e.target.value)} />
                     </div>
                     <div>
                         <label className="input-label">App URL</label>
-                        <input className="input-field" value={profile.appUrl || ''} onChange={(e) => handleChange('appUrl', e.target.value)} />
+                        <input className="input-field" value={localProfile.appUrl || ''} onChange={(e) => handleChange('appUrl', e.target.value)} />
                     </div>
                     <div style={{ gridColumn: '1 / -1' }}>
                         <label className="input-label">Description</label>
-                        <textarea className="input-field" rows={3} value={profile.description} onChange={(e) => handleChange('description', e.target.value)} />
+                        <textarea className="input-field" rows={3} value={localProfile.description} onChange={(e) => handleChange('description', e.target.value)} />
                     </div>
                     <div>
                         <label className="input-label">Target Audience</label>
-                        <input className="input-field" value={profile.targetAudience} onChange={(e) => handleChange('targetAudience', e.target.value)} />
+                        <input className="input-field" value={localProfile.targetAudience} onChange={(e) => handleChange('targetAudience', e.target.value)} />
                     </div>
                     <div>
                         <label className="input-label">Region</label>
-                        <input className="input-field" value={profile.region} onChange={(e) => handleChange('region', e.target.value)} />
+                        <input className="input-field" value={localProfile.region} onChange={(e) => handleChange('region', e.target.value)} />
                     </div>
                     <div>
                         <label className="input-label">Stage</label>
-                        <select className="input-field" value={profile.stage} onChange={(e) => handleChange('stage', e.target.value)}>
+                        <select className="input-field" value={localProfile.stage} onChange={(e) => handleChange('stage', e.target.value)}>
                             <option value="idea">Idea</option>
                             <option value="mvp">MVP</option>
                             <option value="beta">Beta</option>
@@ -114,7 +176,7 @@ export default function Settings({ mode, setMode }) {
                     </div>
                     <div>
                         <label className="input-label">Monetization</label>
-                        <select className="input-field" value={profile.monetization} onChange={(e) => handleChange('monetization', e.target.value)}>
+                        <select className="input-field" value={localProfile.monetization} onChange={(e) => handleChange('monetization', e.target.value)}>
                             <option value="Free">Free</option>
                             <option value="Freemium">Freemium</option>
                             <option value="Paid">Paid</option>
@@ -128,11 +190,11 @@ export default function Settings({ mode, setMode }) {
             <div className="card mb-6">
                 <div className="card-header">
                     <div className="card-title">Connected Accounts</div>
-                    <button className="btn btn-secondary btn-sm">Connect new</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => alert('Future Implementation: Composio Connection')}>Connect new</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                     {Object.entries(platformConfig).map(([key, config]) => {
-                        const connected = mockSocialAccounts.find((a) => a.platform === key);
+                        const connected = (socialAccounts || []).find((a) => a.platform === key && a.isActive);
                         const IconComp = config.icon;
                         return (
                             <div key={key} className="connected-account">
@@ -149,10 +211,13 @@ export default function Settings({ mode, setMode }) {
                                     <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                                         <span className="dot dot-success" />
                                         <span style={{ fontSize: '0.75rem', color: 'var(--success)' }}>Connected</span>
-                                        <button className="btn btn-ghost btn-sm">Disconnect</button>
+                                        <button className="btn btn-ghost btn-sm" onClick={() => {
+                                            console.log('[Settings] Disconnecting:', connected._id);
+                                            disconnectSocial({ accountId: connected._id });
+                                        }}>Disconnect</button>
                                     </div>
                                 ) : (
-                                    <button className="btn btn-secondary btn-sm">
+                                    <button className="btn btn-secondary btn-sm" onClick={() => alert(`Connect ${config.label} (Requires Composio Setup) `)}>
                                         <ExternalLink size={14} /> Connect
                                     </button>
                                 )}
@@ -170,16 +235,16 @@ export default function Settings({ mode, setMode }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                     <div>
                         <label className="input-label">Name</label>
-                        <input className="input-field" value={mockUser.name} readOnly />
+                        <input className="input-field" value={user.name || ''} readOnly />
                     </div>
                     <div>
                         <label className="input-label">Email</label>
-                        <input className="input-field" value={mockUser.email} readOnly />
+                        <input className="input-field" value={user.email} readOnly />
                     </div>
                     <div>
                         <label className="input-label">Plan</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
-                            <span className="badge badge-primary">{mockUser.plan}</span>
+                            <span className="badge badge-primary">{user.plan}</span>
                             <button className="btn btn-ghost btn-sm">Upgrade</button>
                         </div>
                     </div>

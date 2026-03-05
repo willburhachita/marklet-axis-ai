@@ -1,39 +1,45 @@
 /**
- * LLM Helper — Google Gemini integration
+ * LLM Helper — DigitalOcean Serverless Inference
  *
- * Uses Google's Generative AI SDK to call Gemini models.
- * Model preference order (free tier):
- *   1. gemini-1.5-flash      — generous free tier, good reasoning
- *   2. gemini-1.5-flash-8b   — lightest, fastest fallback
+ * Uses DigitalOcean's Gradient AI Platform Serverless Inference API
+ * which provides an OpenAI-compatible /v1/chat/completions endpoint.
  *
- * Note: gemini-2.0-flash has much stricter free-tier quotas.
- *       We default to 1.5-flash for reliability.
+ * Model preference order:
+ *   1. llama3.3-70b-instruct  — best quality, Meta Llama 3.3
+ *   2. llama3-8b-instruct     — faster/lighter fallback
+ *
+ * API docs: https://docs.digitalocean.com/products/gradient-ai-platform/how-to/use-serverless-inference/
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+const INFERENCE_BASE_URL = "https://inference.do-ai.run";
 
-const getClient = () => {
-    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+function getApiKey(): string {
+    const apiKey = process.env.DO_INFERENCE_API_KEY;
     if (!apiKey) {
         throw new Error(
-            "GOOGLE_GEMINI_API_KEY not set. Add it via: npx convex env set GOOGLE_GEMINI_API_KEY <key>"
+            "DO_INFERENCE_API_KEY not set. Add it via: npx convex env set DO_INFERENCE_API_KEY <key>\n" +
+            "Get your Model Access Key from the DigitalOcean Gradient AI Platform dashboard."
         );
     }
-    return new GoogleGenerativeAI(apiKey);
-};
+    return apiKey;
+}
 
-/** Models tried in order when quota is exceeded */
+/** Models tried in order when quota/rate-limit is hit */
 const MODEL_FALLBACK_CHAIN = [
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
+    "llama3.3-70b-instruct",
+    "llama3-8b-instruct",
 ];
 
-function isQuotaError(error: unknown): boolean {
+function isQuotaOrRateError(error: unknown): boolean {
     const msg = String(error);
-    return msg.includes("429") ||
+    return (
+        msg.includes("429") ||
         msg.includes("Too Many Requests") ||
         msg.includes("quota") ||
-        msg.includes("RESOURCE_EXHAUSTED");
+        msg.includes("rate") ||
+        msg.includes("RESOURCE_EXHAUSTED") ||
+        msg.includes("capacity")
+    );
 }
 
 /**
@@ -44,8 +50,62 @@ function sleep(ms: number) {
 }
 
 /**
- * Call a Gemini model with automatic fallback to cheaper models on quota errors.
- * Tries each model in MODEL_FALLBACK_CHAIN with a short delay between attempts.
+ * Call a single model on DO Serverless Inference.
+ */
+async function callModel(
+    modelId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    options?: {
+        temperature?: number;
+        maxTokens?: number;
+    }
+): Promise<string> {
+    const apiKey = getApiKey();
+
+    const body = {
+        model: modelId,
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+        ],
+        temperature: options?.temperature ?? 0.7,
+        max_completion_tokens: options?.maxTokens ?? 4096,
+    };
+
+    const response = await fetch(`${INFERENCE_BASE_URL}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+            `DO Inference API error (${response.status}): ${errorText}`
+        );
+    }
+
+    const data = (await response.json()) as {
+        choices: Array<{
+            message: { content: string };
+            finish_reason: string;
+        }>;
+    };
+
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+        throw new Error("DO Inference API returned empty response");
+    }
+
+    return content;
+}
+
+/**
+ * Call with automatic fallback to lighter models on rate-limit errors.
  */
 async function callWithFallback(
     systemPrompt: string,
@@ -56,20 +116,9 @@ async function callWithFallback(
         maxTokens?: number;
     }
 ): Promise<string> {
-    const client = getClient();
-
     // If a specific model was requested, just try that one
     if (options?.model) {
-        const model = client.getGenerativeModel({
-            model: options.model,
-            generationConfig: {
-                temperature: options.temperature ?? 0.7,
-                maxOutputTokens: options.maxTokens ?? 4096,
-            },
-            systemInstruction: systemPrompt,
-        });
-        const result = await model.generateContent(userPrompt);
-        return result.response.text();
+        return callModel(options.model, systemPrompt, userPrompt, options);
     }
 
     // Otherwise try the fallback chain
@@ -81,42 +130,32 @@ async function callWithFallback(
                 // Brief pause before retry to respect rate limits
                 await sleep(2000);
             }
-            const model = client.getGenerativeModel({
-                model: modelName,
-                generationConfig: {
-                    temperature: options?.temperature ?? 0.7,
-                    maxOutputTokens: options?.maxTokens ?? 4096,
-                },
-                systemInstruction: systemPrompt,
-            });
-            const result = await model.generateContent(userPrompt);
-            return result.response.text();
+            return await callModel(modelName, systemPrompt, userPrompt, options);
         } catch (err) {
             lastError = err;
-            if (isQuotaError(err) && i < MODEL_FALLBACK_CHAIN.length - 1) {
+            if (isQuotaOrRateError(err) && i < MODEL_FALLBACK_CHAIN.length - 1) {
                 console.warn(
-                    `[LLM] Model ${modelName} quota exceeded, falling back to ${MODEL_FALLBACK_CHAIN[i + 1]}`
+                    `[LLM] Model ${modelName} rate-limited, falling back to ${MODEL_FALLBACK_CHAIN[i + 1]}`
                 );
                 continue;
             }
-            // Non-quota error or last model in chain — rethrow
+            // Non-rate error or last model in chain — break
             break;
         }
     }
 
-    // All models exhausted — throw a clean user-facing error
-    if (isQuotaError(lastError)) {
+    // All models exhausted
+    if (isQuotaOrRateError(lastError)) {
         throw new Error(
-            "The AI API quota has been exceeded for all available models. " +
-            "This is a free-tier limit. Please wait a few minutes and try again, " +
-            "or upgrade your Google AI API plan at https://ai.google.dev"
+            "The AI API rate limit has been exceeded for all available models. " +
+            "Please wait a few minutes and try again."
         );
     }
     throw lastError;
 }
 
 /**
- * Generate text using Gemini.
+ * Generate text using DigitalOcean Serverless Inference.
  */
 export async function generateText(
     systemPrompt: string,
@@ -131,7 +170,7 @@ export async function generateText(
 }
 
 /**
- * Generate structured JSON using Gemini.
+ * Generate structured JSON using DigitalOcean Serverless Inference.
  * Wraps the text output in JSON parsing with error handling.
  */
 export async function generateJSON<T = unknown>(
@@ -162,6 +201,106 @@ export async function generateJSON<T = unknown>(
     try {
         return JSON.parse(cleaned) as T;
     } catch (e) {
-        throw new Error(`Failed to parse LLM JSON response: ${cleaned.slice(0, 200)}...`);
+        throw new Error(
+            `Failed to parse LLM JSON response: ${cleaned.slice(0, 200)}...`
+        );
     }
+}
+
+/**
+ * Generate an image using DigitalOcean Gradient AI via the fal async-invoke endpoint.
+ * Uses fal-ai/flux/schnell — available on standard DO subscription tiers.
+ * Polls until the job completes (COMPLETED status) then returns the image URL.
+ */
+export async function generateImage(
+    prompt: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options?: { size?: string }
+): Promise<string> {
+    const apiKey = getApiKey();
+
+    // Step 1: Submit the async job
+    const submitResponse = await fetch(`${INFERENCE_BASE_URL}/v1/async-invoke`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+            model_id: "fal-ai/flux/schnell",
+            input: {
+                prompt,
+                num_inference_steps: 4,
+                num_images: 1,
+                enable_safety_checker: true,
+            },
+        }),
+    });
+
+    if (!submitResponse.ok) {
+        const errorText = await submitResponse.text();
+        throw new Error(
+            `DO Image Generation API error (${submitResponse.status}): ${errorText}`
+        );
+    }
+
+    const submitData = (await submitResponse.json()) as { request_id: string };
+    const requestId = submitData.request_id;
+    if (!requestId) {
+        throw new Error("DO Image Generation API returned no request_id");
+    }
+
+    // Step 2: Poll for completion (max 60 seconds, poll every 3s)
+    const maxAttempts = 20;
+    for (let i = 0; i < maxAttempts; i++) {
+        await sleep(3000);
+
+        const statusResponse = await fetch(
+            `${INFERENCE_BASE_URL}/v1/async-invoke/${requestId}/status`,
+            {
+                headers: { Authorization: `Bearer ${apiKey}` },
+            }
+        );
+
+        if (!statusResponse.ok) {
+            continue; // transient error, keep polling
+        }
+
+        const statusData = (await statusResponse.json()) as {
+            status: string;
+            error?: string;
+        };
+
+        if (statusData.status === "FAILED" || statusData.error) {
+            throw new Error(`Image generation failed: ${statusData.error ?? "unknown error"}`);
+        }
+
+        if (statusData.status === "COMPLETED") {
+            // Step 3: Fetch the result
+            const resultResponse = await fetch(
+                `${INFERENCE_BASE_URL}/v1/async-invoke/${requestId}`,
+                {
+                    headers: { Authorization: `Bearer ${apiKey}` },
+                }
+            );
+
+            if (!resultResponse.ok) {
+                throw new Error(`Failed to fetch image result: ${resultResponse.status}`);
+            }
+
+            const resultData = (await resultResponse.json()) as {
+                output?: { images?: Array<{ url: string }> };
+            };
+
+            const imageUrl = resultData.output?.images?.[0]?.url;
+            if (!imageUrl) {
+                throw new Error("Image generation completed but no image URL returned");
+            }
+
+            return imageUrl;
+        }
+        // else QUEUED or IN_PROGRESS — keep polling
+    }
+
+    throw new Error("Image generation timed out after 60 seconds");
 }

@@ -2,7 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
- * Get the app profile for the current user.
+ * Get the app profile for the current user. (Legacy - to be removed)
  */
 export const getByUser = query({
     args: { userId: v.id("users") },
@@ -11,6 +11,19 @@ export const getByUser = query({
             .query("appProfiles")
             .withIndex("by_user", (q) => q.eq("userId", args.userId))
             .first();
+    },
+});
+
+/**
+ * Get all app profiles for the current user.
+ */
+export const getAllByUser = query({
+    args: { userId: v.id("users") },
+    handler: async (ctx, args) => {
+        return await ctx.db
+            .query("appProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", args.userId))
+            .collect();
     },
 });
 
@@ -86,5 +99,35 @@ export const update = mutation({
             if (value !== undefined) filtered[key] = value;
         }
         await ctx.db.patch(profileId, filtered);
+    },
+});
+
+/**
+ * Trigger an async GitHub repo import (multi-project).
+ */
+export const importProject = mutation({
+    args: {
+        userId: v.id("users"),
+        repoUrl: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // Here we'd typically trigger a DO Function to scan the repo asynchronously.
+        // For now, we instantly create an "in progress" project shell so the wizard can start.
+        const now = Date.now();
+        const profileId = await ctx.db.insert("appProfiles", {
+            userId: args.userId,
+            appName: "Importing...",
+            description: "",
+            targetAudience: "",
+            platforms: [],
+            region: "Global",
+            stage: "idea",
+            monetization: "unknown",
+            appUrl: args.repoUrl,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        return profileId;
     },
 });
