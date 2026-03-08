@@ -41,28 +41,32 @@ export const syncUser = mutation({
         email: v.string(),
         name: v.string(),
         avatarUrl: v.optional(v.string()),
+        provider: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        // Check if user exists
+        const isGitHub = args.provider === "github";
+
         const existing = await ctx.db
             .query("users")
             .withIndex("by_email", (q) => q.eq("email", args.email))
             .unique();
 
         if (existing) {
-            // Update name/avatar if changed
-            await ctx.db.patch(existing._id, {
+            const updates: Record<string, unknown> = {
                 name: args.name,
                 avatarUrl: args.avatarUrl,
-            });
+            };
+            // Only ever set githubConnected to true, never back to false
+            if (isGitHub) updates.githubConnected = true;
+            await ctx.db.patch(existing._id, updates);
             return existing._id;
         }
 
-        // Create new user
         return await ctx.db.insert("users", {
             name: args.name,
             email: args.email,
             avatarUrl: args.avatarUrl,
+            githubConnected: isGitHub,
             plan: "free",
             mode: "assist",
             createdAt: Date.now(),

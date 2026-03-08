@@ -14,6 +14,7 @@ import Resources from './pages/Resources';
 import Settings from './pages/Settings';
 import ProjectHub from './pages/ProjectHub';
 import Wizard from './pages/Wizard';
+import IntegrationsCallback from './pages/IntegrationsCallback';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/integrations/callback" element={<IntegrationsCallback />} />
 
         {/* Protected dashboard — AuthGuard checks session + profile */}
         <Route

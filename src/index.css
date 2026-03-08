@@ -3417,3 +3417,98 @@ select.input-field {
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: var(--space-6);
 }
+
+/* ─── Page Sub-Header Slot ──────────────────────────────── */
+/* Rendered OUTSIDE .main-content so it never scrolls with the page */
+.page-sub-header-slot {
+  flex-shrink: 0;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.page-sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+}
+
+.page-sub-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.page-sub-header p {
+  font-size: 0.813rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.page-sub-header-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* ─── GitHub Connect Banner ─────────────────────────────── */
+.github-connect-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px var(--space-5);
+  background: rgba(139, 92, 246, 0.06);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+  font-size: 0.813rem;
+  color: var(--text-secondary);
+}
+
+.github-banner-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.github-banner-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.github-banner-btn {
+  flex-shrink: 0;
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.github-banner-btn:hover {
+  opacity: 0.85;
+}
+
+.github-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.github-banner-close:hover {
+  color: var(--text-primary);
+}

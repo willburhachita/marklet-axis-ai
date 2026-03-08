@@ -9,6 +9,7 @@ export default defineSchema({
         name: v.string(),
         email: v.string(),
         avatarUrl: v.optional(v.string()),
+        githubConnected: v.optional(v.boolean()),
         plan: v.union(
             v.literal("free"),
             v.literal("indie"),

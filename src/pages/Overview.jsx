@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
     LayoutDashboard, Bot, Check, CheckCircle2, ChevronRight,
@@ -8,8 +8,10 @@ import {
 import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '../../convex/_generated/api.js';
 
-// NETWORK INTEGRATIONS (Composio-backed)
-const COMPOSIO_SANDBOX_INTEGRATIONS = [
+// NETWORK INTEGRATIONS — all three are connectable via Composio.
+// Twitter requires COMPOSIO_TWITTER_AUTH_CONFIG_ID to be set in Convex env vars.
+// LinkedIn and GitHub are ready out of the box.
+const COMPOSIO_INTEGRATIONS = [
     { id: 'twitter', label: 'Twitter / X', icon: Twitter, color: 'var(--info)' },
     { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, color: 'var(--primary)' },
     { id: 'github', label: 'GitHub', icon: Github, color: 'var(--text-primary)' },
@@ -29,7 +31,7 @@ function AIComment({ message }) {
 }
 
 export default function Overview() {
-    const { user, mode } = useOutletContext();
+    const { user, mode, setSubHeader } = useOutletContext();
     const { projectId } = useParams();
     const navigate = useNavigate();
 
@@ -42,6 +44,7 @@ export default function Overview() {
     const updateProfile = useMutation(api.appProfiles.update);
     const generateStrategyAction = useAction(api.agentActions.generateStrategy);
     const updateContentStatus = useMutation(api.contents.updateStatus);
+    const verifyConnectionAction = useAction(api.agentActions.verifyAndSaveConnection);
 
     // --- Component State ---
 
@@ -138,6 +141,32 @@ export default function Overview() {
 
         setHasRestoredStep(true);
     }, [profile, strategy, hasRestoredStep]);
+
+    // Inject the page sub-header into the Layout slot (outside the scroll container)
+    useEffect(() => {
+        if (!profile || !user) return;
+        const appName = nameHistory[nameIndex] || profile.appName;
+        setSubHeader(
+            <div className="page-sub-header">
+                <div>
+                    <h1><LayoutDashboard size={20} /> Strategy &amp; Execution Hub</h1>
+                    <p>Your step-by-step AI workflow for <strong>{appName}</strong></p>
+                </div>
+                <div className="page-sub-header-actions">
+                    <button className="btn btn-secondary btn-sm">
+                        <RefreshCcw size={14} /> Sync Codebase
+                    </button>
+                    <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => generateStrategyAction({ appProfileId: profile._id, userId: user._id })}
+                    >
+                        <Sparkles size={14} /> Full Refresh
+                    </button>
+                </div>
+            </div>
+        );
+        return () => setSubHeader(null);
+    }, [profile?._id, nameHistory[nameIndex]]);
 
     // --- Handlers: Step 1 ---
     const handleGenerateIdentity = async (field) => {
@@ -331,8 +360,6 @@ export default function Overview() {
     // --- Handlers: Step 4 ---
     const handleConnectAccount = async (platformId) => {
         if (!profile || !user) return;
-        const supportedPlatforms = ['twitter', 'linkedin', 'github'];
-        if (!supportedPlatforms.includes(platformId)) return;
 
         setConnectingPlatform(platformId);
         try {
@@ -341,16 +368,24 @@ export default function Overview() {
                 userId: user._id,
                 platform: platformId,
             });
+
             if (result.success && result.url) {
-                window.open(result.url, '_blank', 'noopener,noreferrer');
+                // Store the connectedAccountId so IntegrationsCallback can verify it
+                if (result.connectedAccountId) {
+                    sessionStorage.setItem(`composio_conn_${platformId}`, result.connectedAccountId);
+                }
+                // Remember where to return after OAuth
+                sessionStorage.setItem('composio_return_url', window.location.pathname);
+                // Full page redirect — IntegrationsCallback handles the return
+                window.location.href = result.url;
             } else {
-                console.error('Connection failed:', result.error);
                 alert(`Could not connect ${platformId}: ${result.error}`);
+                setConnectingPlatform(null);
             }
         } catch (err) {
             console.error('Connection error:', err);
+            setConnectingPlatform(null);
         }
-        setConnectingPlatform(null);
     };
 
     const handleConfirmIntegrations = () => {
@@ -368,26 +403,6 @@ export default function Overview() {
 
     return (
         <div className="animate-fade-in" style={{ paddingBottom: 'var(--space-8)' }}>
-
-            <div className="page-header sticky-header">
-                <div className="page-header-left">
-                    <h1 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                        <LayoutDashboard size={24} /> Strategy &amp; Execution Hub
-                    </h1>
-                    <p>Your step-by-step AI workflow for {nameHistory[nameIndex]}</p>
-                </div>
-                <div className="page-header-actions">
-                    <button className="btn btn-secondary">
-                        <RefreshCcw size={16} />
-                        Sync Codebase
-                    </button>
-                    <button className="btn btn-primary" onClick={() => generateStrategyAction({ appProfileId: profile._id, userId: user._id })}>
-                        <Sparkles size={16} />
-                        Full Refresh
-                    </button>
-                </div>
-            </div>
-
             <div style={{ maxWidth: 900, margin: '0 auto', paddingTop: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
 
                 {/* --- Step 1: Branding & Identity --- */}
@@ -627,7 +642,7 @@ export default function Overview() {
                         </div>
 
                         <div className="grid-responsive">
-                            {COMPOSIO_SANDBOX_INTEGRATIONS.map((cfg) => {
+                            {COMPOSIO_INTEGRATIONS.map((cfg) => {
                                 const IconComp = cfg.icon;
                                 const isConnecting = connectingPlatform === cfg.id;
                                 const socialAccount = socialAccounts?.find(a => a.platform === cfg.id && a.isActive);
@@ -654,7 +669,9 @@ export default function Overview() {
                                                 disabled={isConnecting}
                                                 onClick={() => handleConnectAccount(cfg.id)}
                                             >
-                                                {isConnecting ? <><Loader2 size={12} className="onboarding-gen-spin" /> Connecting...</> : 'Connect Account'}
+                                                {isConnecting
+                                                    ? <><Loader2 size={12} className="onboarding-gen-spin" /> Connecting…</>
+                                                    : 'Connect'}
                                             </button>
                                         )}
                                     </div>

@@ -9,6 +9,8 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
+
+declare const process: { env: Record<string, string | undefined> };
 import { generateJSON, generateText, generateImage } from "./lib/llm";
 import {
     STRATEGY_AGENT_PROMPT,
@@ -305,33 +307,91 @@ IMPORTANT: Incorporate the feedback directly. Keep tasks hyper-specific. Valid J
 });
 
 /**
- * Initiate a network account connection via Composio OAuth.
- * Returns a redirect URL the user should be sent to.
+ * Initiate a network account connection via Composio OAuth (v3 API).
+ * Returns a redirect URL and the connectedAccountId for the callback to use.
+ *
+ * Auth config IDs are loaded from Convex env vars (see composio.ts).
+ * To add Twitter: set COMPOSIO_TWITTER_AUTH_CONFIG_ID in Convex env.
  */
 export const initiateNetworkConnection = action({
     args: {
         appProfileId: v.id("appProfiles"),
         userId: v.id("users"),
-        platform: v.union(
-            v.literal("twitter"),
-            v.literal("linkedin"),
-            v.literal("github"),
-            v.literal("medium")
-        ),
+        platform: v.string(),
     },
-    handler: async (ctx, args): Promise<{ success: boolean; url?: string; error?: string }> => {
+    handler: async (ctx, args): Promise<{ success: boolean; url?: string; connectedAccountId?: string; error?: string }> => {
         try {
-            const { initiateConnection, SANDBOX_INTEGRATIONS } = await import("./lib/composio");
+            const { initiateConnection, getAuthConfigId } = await import("./lib/composio");
 
-            const integrationId = SANDBOX_INTEGRATIONS[args.platform as keyof typeof SANDBOX_INTEGRATIONS];
-            if (!integrationId) throw new Error(`Integration for ${args.platform} not configured.`);
+            const authConfigId = getAuthConfigId(args.platform);
+            if (!authConfigId) {
+                throw new Error(
+                    `${args.platform} integration is not configured. ` +
+                    `Set COMPOSIO_${args.platform.toUpperCase()}_AUTH_CONFIG_ID in Convex env vars.`
+                );
+            }
 
-            const entityId = `user_${args.userId}`;
-            const redirectUrl = `http://localhost:5173/integrations/callback?platform=${args.platform}`;
+            const composioUserId = `user_${args.userId}`;
+            const siteUrl = process.env.SITE_URL || "http://localhost:5173";
+            const callbackUrl = `${siteUrl}/integrations/callback?platform=${args.platform}`;
 
-            const { url } = await initiateConnection(entityId, integrationId, redirectUrl, { useSandbox: true });
+            const { redirectUrl, connectedAccountId } = await initiateConnection(
+                composioUserId,
+                authConfigId,
+                callbackUrl
+            );
 
-            return { success: true, url };
+            return { success: true, url: redirectUrl, connectedAccountId };
+        } catch (error) {
+            return { success: false, error: String(error) };
+        }
+    }
+});
+
+/**
+ * Verify a Composio OAuth connection completed successfully and save it.
+ * Called from IntegrationsCallback after the user returns from OAuth.
+ */
+export const verifyAndSaveConnection = action({
+    args: {
+        userId: v.id("users"),
+        platform: v.string(),
+        connectedAccountId: v.string(),
+    },
+    handler: async (ctx, args): Promise<{ success: boolean; accountName?: string; error?: string }> => {
+        try {
+            const { getConnectionStatus, getAuthConfigId } = await import("./lib/composio");
+
+            const authConfigId = getAuthConfigId(args.platform);
+            if (!authConfigId) {
+                throw new Error(`Unknown platform: ${args.platform}`);
+            }
+
+            const composioUserId = `user_${args.userId}`;
+            const status = await getConnectionStatus(composioUserId, authConfigId);
+
+            if (!status.connected) {
+                return { success: false, error: "Connection not active. Please try connecting again." };
+            }
+
+            // Upsert to socialAccounts table
+            await ctx.runMutation(api.socialAccounts.connect, {
+                userId: args.userId,
+                platform: args.platform,
+                accountName: status.accountName || args.platform,
+                composioEntityId: composioUserId,
+            });
+
+            // Activity log
+            await ctx.runMutation(api.activities.log, {
+                userId: args.userId,
+                agentType: "integration",
+                action: "connect_account",
+                description: `Connected ${args.platform}${status.accountName ? `: @${status.accountName}` : ""}`,
+                metadata: { platform: args.platform, accountName: status.accountName ?? null },
+            });
+
+            return { success: true, accountName: status.accountName };
         } catch (error) {
             return { success: false, error: String(error) };
         }
@@ -643,11 +703,13 @@ export const postToSocial = action({
             // Import dynamically to avoid issues when Composio isn't configured
             const { postTweet, postLinkedIn } = await import("./lib/composio");
 
+            // composioUserId must match what was used during initiateNetworkConnection
+            const composioUserId = `user_${args.userId}`;
             let result: unknown;
             if (content.platform === "twitter") {
-                result = await postTweet(account.composioEntityId, content.body);
+                result = await postTweet(composioUserId, content.body);
             } else if (content.platform === "linkedin") {
-                result = await postLinkedIn(account.composioEntityId, content.body);
+                result = await postLinkedIn(composioUserId, content.body);
             } else {
                 throw new Error(`Posting to ${content.platform} is not yet supported`);
             }

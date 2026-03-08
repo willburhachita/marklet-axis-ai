@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Target, PenTool, Rocket, Code2,
-    FolderOpen, Settings, Hand, Bot, Bell, Search, LogOut,
+    FolderOpen, Settings, Hand, Bot, Bell, Search, LogOut, Github, X,
 } from 'lucide-react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api.js';
@@ -29,6 +29,11 @@ export default function Layout() {
     const navigate = useNavigate();
     const [signingOut, setSigningOut] = useState(false);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [githubBannerDismissed, setGithubBannerDismissed] = useState(false);
+    // Sub-header slot — pages can inject a sticky header here via outlet context.
+    // It lives OUTSIDE .main-content so it never scrolls.
+    const [subHeader, setSubHeaderRaw] = useState(null);
+    const setSubHeader = useCallback((el) => setSubHeaderRaw(el), []);
 
     // Real user from Convex
     const user = useQuery(api.users.getCurrentUser);
@@ -218,8 +223,39 @@ export default function Layout() {
                     </div>
                 </header>
 
+                {/* GitHub connect nudge — shown for email/password users who haven't connected GitHub */}
+                {user && user.githubConnected === false && !githubBannerDismissed && (
+                    <div className="github-connect-banner">
+                        <Github size={15} className="github-banner-icon" />
+                        <span className="github-banner-text">
+                            Connect GitHub to unlock the Codebase Agent — your AI reads your code for smarter marketing.
+                        </span>
+                        <button
+                            className="github-banner-btn"
+                            onClick={() => navigate(projectId ? `/project/${projectId}/settings` : '/settings')}
+                        >
+                            Connect GitHub →
+                        </button>
+                        <button
+                            className="github-banner-close"
+                            title="Dismiss"
+                            onClick={() => setGithubBannerDismissed(true)}
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
+
+                {/* Page sub-header slot — rendered here so it never enters the scroll container.
+                    Pages set this via setSubHeader from useOutletContext(). */}
+                {subHeader && (
+                    <div className="page-sub-header-slot">
+                        {subHeader}
+                    </div>
+                )}
+
                 <main className="main-content">
-                    <Outlet context={{ user, mode }} />
+                    <Outlet context={{ user, mode, setSubHeader }} />
                 </main>
             </div>
 
